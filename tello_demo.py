@@ -1,5 +1,6 @@
-from dronelib_tello import TelloDrone
 from time import sleep
+
+from dronelib_tello import TelloDrone
 
 def main():
     drone = TelloDrone()
@@ -7,9 +8,9 @@ def main():
 
     drone.takeoff(1)
     sleep(2)
-    drone.set_target(1,0)
+    drone.set_target(1, 0)
     sleep(2)
-    drone.set_target(0,0)
+    drone.set_target(0, 0)
     drone.drone.send_command("land")
 
 

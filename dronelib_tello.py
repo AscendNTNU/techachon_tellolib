@@ -1,15 +1,16 @@
+from __future__ import print_function
+
 import socket
 import threading
 import time
 from datetime import datetime
-from math import atan2, cos, sin, degrees, radians, hypot, copysign
-from drone import Drone
+from math import atan2, cos, sin, degrees, radians, hypot
 
 class Stats:
-    def __init__(self, command, id):
+    def __init__(self, command, id_):
         self.command = command
         self.response = None
-        self.id = id
+        self.id = id_
 
         self.start_time = datetime.now()
         self.end_time = None
@@ -26,28 +27,28 @@ class Stats:
         return diff.total_seconds()
 
     def print_stats(self):
-        print '\nid: %s' % self.id
-        print 'command: %s' % self.command
-        print 'response: %s' % self.response
-        print 'start time: %s' % self.start_time
-        print 'end_time: %s' % self.end_time
-        print 'duration: %s\n' % self.duration
+        print('\nid: %s' % self.id)
+        print('command: %s' % self.command)
+        print('response: %s' % self.response)
+        print('start time: %s' % self.start_time)
+        print('end_time: %s' % self.end_time)
+        print('duration: %s\n' % self.duration)
 
     def got_response(self):
         if self.response is None:
             return False
-        else:
-            return True
+
+        return True
 
     def return_stats(self):
-        str = ''
-        str +=  '\nid: %s\n' % self.id
-        str += 'command: %s\n' % self.command
-        str += 'response: %s\n' % self.response
-        str += 'start time: %s\n' % self.start_time
-        str += 'end_time: %s\n' % self.end_time
-        str += 'duration: %s\n' % self.duration
-        return str
+        str_ = ''
+        str_ += '\nid: %s\n' % self.id
+        str_ += 'command: %s\n' % self.command
+        str_ += 'response: %s\n' % self.response
+        str_ += 'start time: %s\n' % self.start_time
+        str_ += 'end_time: %s\n' % self.end_time
+        str_ += 'duration: %s\n' % self.duration
+        return str_
 
 class Tello:
     def __init__(self):
@@ -82,18 +83,18 @@ class Tello:
         self.log.append(Stats(command, len(self.log)))
 
         self.socket.sendto(command.encode('utf-8'), self.tello_adderss)
-        print 'sending command: %s to %s' % (command, self.tello_ip)
+        print('sending command: %s to %s' % (command, self.tello_ip))
 
         start = time.time()
         while not self.log[-1].got_response():
             now = time.time()
             diff = now - start
             if diff > self.MAX_TIME_OUT:
-                print 'Max timeout exceeded... command %s' % command
+                print('Max timeout exceeded... command %s' % command)
                 # TODO: is timeout considered failure or next command still get executed
                 # now, next one got executed
                 return
-        print 'Done!!! sent command: %s to %s' % (command, self.tello_ip)
+        print('Done!!! sent command: %s to %s' % (command, self.tello_ip))
 
     def _receive_thread(self):
         """Listen to responses from the Tello.
@@ -103,12 +104,12 @@ class Tello:
         """
         while True:
             try:
-                self.response, ip = self.socket.recvfrom(1024)
-                print('from %s: %s' % (ip, self.response))
+                response, ip = self.socket.recvfrom(1024)
+                print('from %s: %s' % (ip, response))
 
-                self.log[-1].add_response(self.response)
-            except socket.error, exc:
-                print "Caught exception socket.error : %s" % exc
+                self.log[-1].add_response(response)
+            except socket.error as exc:
+                print("Caught exception socket.error : %s" % exc)
 
     def on_close(self):
         pass
@@ -119,12 +120,12 @@ class Tello:
     def get_log(self):
         return self.log
 
-class TelloDrone(Drone):
+class TelloDrone(object):
 
     def __init__(self):
         self.drone = Tello()
         self.height = 0.0
-        self.yaw = 0.0
+        self._yaw = 0.0
         self.x_cm = 0.0
         self.y_cm = 0.0
         self.z_cm = 0.0
@@ -141,11 +142,11 @@ class TelloDrone(Drone):
         yaw_command = "ccw " if delta_yaw > 0 else "cw "
         if delta_yaw != 0:
             self.drone.send_command(yaw_command + str(abs(delta_yaw)))
-    
-        self.yaw += delta_yaw
+
+        self._yaw += delta_yaw
 
     def _move_z_local_frame(self, cm):
-        if (self.z_cm + cm >= self.max_height):
+        if self.z_cm + cm >= self.max_height:
             print("Exceeding max height, aborting climb command")
             return
 
@@ -158,8 +159,8 @@ class TelloDrone(Drone):
         x_command = "forward " if cm > 0 else "back "
         self.drone.send_command(x_command + str(abs(cm)))
 
-        dx = cos(radians(self.yaw)) * cm
-        dy = sin(radians(self.yaw)) * cm
+        dx = cos(radians(self._yaw)) * cm
+        dy = sin(radians(self._yaw)) * cm
         self.x_cm += dx
         self.y_cm += dy
 
@@ -169,40 +170,36 @@ class TelloDrone(Drone):
         self.drone.send_command("streamon")
         # self.drone.send_command("moff") # disable mission pads
         self.activated = True
-        
-
 
     def position(self):
         return (self.x_cm / 100, self.y_cm / 100, 100)
 
-
     def yaw(self):
-        return self.yaw
+        return self._yaw
 
     def takeoff(self, height=3.0): # height in m to match SimDrone
-        if self.activated == False:
+        if not self.activated:
             return
-    
+
         self.z_cm = 80 # Approximately default takeoff height
         self.drone.send_command("takeoff")
         self._move_z_local_frame(100*height-self.z_cm)
 
-        
-    def set_target(self,x, y, z=None, yaw=None):
+    def set_target(self, x, y, z=None, yaw=None):
         x_cm = x * 100
         y_cm = y * 100
 
         if z != None:
             z_cm = z * 100
             self._move_z_local_frame(z_cm - self.z_cm)
-        
+
         dx = x_cm - self.x_cm
         dy = y_cm - self.y_cm
 
-        target_direction = degrees(atan2(dy,dx))
-        self._turn(target_direction-self.yaw)
+        target_direction = degrees(atan2(dy, dx))
+        self._turn(target_direction - self._yaw)
 
-        self._move_x_local_frame(hypot(dy,dx))
+        self._move_x_local_frame(hypot(dy, dx))
 
         if yaw != None:
-            self._turn(yaw-self.yaw)
+            self._turn(yaw - self._yaw)
